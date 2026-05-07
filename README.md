@@ -260,8 +260,4 @@ These are only shown when true. No flag means no concern.
 - [ ] Support for Java and Go auto-running
 - [ ] Deployment guide
 
----
 
-## License
-
-MIT
