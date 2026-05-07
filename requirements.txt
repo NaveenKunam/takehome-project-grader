@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+PyGithub
+pypdf
+python-docx
+python-dotenv
+pydantic
+python-multipart
+aiofiles
+httpx
+pytest
+flake8
+pylint
