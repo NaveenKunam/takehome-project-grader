@@ -43,7 +43,7 @@ def detect_project_type(repo_path: str) -> str:
         return "node"
     if (root / "requirements.txt").exists() or (root / "pyproject.toml").exists():
         return "python"
-    if (root / "pom.xml").exists():
+    if (root / "pom.xml").exists() or (root / "build.gradle").exists() or (root / "build.gradle.kts").exists():
         return "java"
     if (root / "go.mod").exists():
         return "go"
@@ -161,5 +161,55 @@ def run_project_checks(repo_path: str) -> Dict[str, Any]:
             results["lint_errors"] = flake8["output"].lower().count(".py:")
 
         results["build_success"] = True
+
+    if project_type == "java":
+        root = Path(repo_path)
+        use_gradle = (root / "build.gradle").exists() or (root / "build.gradle.kts").exists()
+
+        if use_gradle:
+            gradlew = "./gradlew" if (root / "gradlew").exists() else "gradle"
+            build = run_command([gradlew, "build", "-x", "test", "--no-daemon"], cwd=repo_path)
+            results["commands"].append({"name": "build", **build})
+            results["build_success"] = build["success"]
+
+            test = run_command([gradlew, "test", "--no-daemon"], cwd=repo_path)
+            results["commands"].append({"name": "test", **test})
+            for line in test["output"].splitlines():
+                # Gradle: "X tests completed, Y failed"
+                if "tests completed" in line:
+                    try:
+                        total = int(line.split("tests completed")[0].strip().split()[-1])
+                        failed = 0
+                        if "failed" in line:
+                            failed = int(line.split("failed")[0].split(",")[-1].strip().split()[-1])
+                        results["tests_total"] = total
+                        results["tests_failed"] = failed
+                        results["tests_passed"] = total - failed
+                    except Exception:
+                        pass
+        else:
+            build = run_command(["mvn", "package", "-DskipTests", "-q"], cwd=repo_path)
+            results["commands"].append({"name": "build", **build})
+            results["build_success"] = build["success"]
+
+            test = run_command(["mvn", "test"], cwd=repo_path)
+            results["commands"].append({"name": "test", **test})
+            for line in test["output"].splitlines():
+                # Maven: "Tests run: 5, Failures: 0, Errors: 0, Skipped: 0"
+                if line.strip().startswith("Tests run:"):
+                    try:
+                        parts = {k.strip(): int(v.strip()) for k, v in (pair.split(":") for pair in line.split(","))}
+                        results["tests_total"] = parts.get("Tests run", 0)
+                        results["tests_failed"] = parts.get("Failures", 0) + parts.get("Errors", 0)
+                        results["tests_passed"] = results["tests_total"] - results["tests_failed"]
+                    except Exception:
+                        pass
+
+            checkstyle = run_command(["mvn", "checkstyle:check", "-q"], cwd=repo_path)
+            results["commands"].append({"name": "checkstyle", **checkstyle})
+            if not checkstyle["success"]:
+                results["lint_errors"] = checkstyle["output"].lower().count("[warn]") + checkstyle["output"].lower().count("[error]")
+            else:
+                results["lint_errors"] = 0
 
     return results

@@ -25,8 +25,13 @@ export default function ReportCard({ submission, onDelete, onBack }) {
   const grading = submission.grading_data || {}
   const github = submission.github_data || {}
   const repoUrl = submission.github_url
+
+  function handleExportPDF() {
+    window.print()
+  }
+
   return (
-    <div className="space-y-4">
+    <div id="report-content" className="space-y-4">
       <div className="rounded-lg bg-white p-6 shadow">
         <a href={repoUrl} target="_blank" rel="noreferrer" className="text-2xl font-bold text-blue-700 hover:underline">
           {submission.repo_owner}/{submission.repo_name}
@@ -42,7 +47,11 @@ export default function ReportCard({ submission, onDelete, onBack }) {
           <p><span className="text-slate-500">Last push:</span> {github.last_push_at ? new Date(github.last_push_at).toLocaleDateString() : '-'}</p>
           <p><span className="text-slate-500">Languages:</span> {Object.keys(github.language_percentages || {}).length}</p>
         </div>
-        <div className="mt-4 flex gap-2"><button onClick={onBack} className="rounded border px-3 py-2">Grade Another</button><button onClick={onDelete} className="rounded bg-red-600 px-3 py-2 text-white">Delete</button></div>
+        <div className="no-print mt-4 flex gap-2">
+          <button onClick={onBack} className="rounded border px-3 py-2">Grade Another</button>
+          <button onClick={handleExportPDF} className="rounded bg-blue-600 px-3 py-2 text-white">Export as PDF</button>
+          <button onClick={onDelete} className="rounded bg-red-600 px-3 py-2 text-white">Delete</button>
+        </div>
       </div>
       <TechStackPanel githubData={submission.github_data} techStackSummary={grading.tech_stack_summary} />
       <FeaturesPanel assessment={features} />

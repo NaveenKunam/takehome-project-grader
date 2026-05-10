@@ -1,13 +1,14 @@
 import json
 import os
 import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, List, Set
 
 from backend.grader.groq_client import groq_chat_completion
 EXCLUDED_DIRS = {"node_modules", ".git", "__pycache__", "dist", "build", "venv", ".venv"}
-SOURCE_EXTS = {".js", ".jsx", ".ts", ".tsx", ".py"}
-CONFIG_FILES = {"package.json", "requirements.txt", "pyproject.toml"}
+SOURCE_EXTS = {".js", ".jsx", ".ts", ".tsx", ".py", ".java"}
+CONFIG_FILES = {"package.json", "requirements.txt", "pyproject.toml", "pom.xml", "build.gradle", "build.gradle.kts"}
 
 
 def _is_excluded_file(path: Path) -> bool:
@@ -50,7 +51,7 @@ def collect_source_blob(repo_path: str) -> Dict[str, Any]:
 
             rel = str(path.relative_to(repo_path))
             lower_rel = rel.lower()
-            if any(t in lower_rel for t in ["/test", "/tests"]) or re.search(r"test_.*\.py$|.*_test\.py$|.*\.(test|spec)\.(js|ts)$", lower_rel):
+            if any(t in lower_rel for t in ["/test", "/tests"]) or re.search(r"test_.*\.py$|.*_test\.py$|.*\.(test|spec)\.(js|ts)$|.*test(s)?\.java$|.*tests?\.java$", lower_rel):
                 test_files.append(rel)
 
             if files_seen >= 50:
@@ -91,11 +92,23 @@ def detect_dependencies(repo_path: str) -> List[str]:
             if pkg:
                 deps.add(pkg)
 
+    pom_file = Path(repo_path) / "pom.xml"
+    if pom_file.exists():
+        try:
+            tree = ET.parse(pom_file)
+            ns = {"m": "http://maven.apache.org/POM/4.0.0"}
+            for dep in tree.findall(".//m:dependency", ns) or tree.findall(".//dependency"):
+                artifact = dep.find("m:artifactId", ns) or dep.find("artifactId")
+                if artifact is not None and artifact.text:
+                    deps.add(artifact.text.strip())
+        except Exception:
+            pass
+
     return sorted(deps)
 
 
 def detect_routes(repo_path: str) -> List[str]:
-    patterns = [r"app\.get", r"app\.post", r"app\.put", r"app\.delete", r"router\.get", r"@app\.route", r"@router\.get", r"@app\.get", r"<Route", r"useNavigate", r"Link to="]
+    patterns = [r"app\.get", r"app\.post", r"app\.put", r"app\.delete", r"router\.get", r"@app\.route", r"@router\.get", r"@app\.get", r"<Route", r"useNavigate", r"Link to=", r"@GetMapping", r"@PostMapping", r"@PutMapping", r"@DeleteMapping", r"@RequestMapping"]
     matches: List[str] = []
     for dirpath, dirnames, filenames in os.walk(repo_path):
         dirnames[:] = [d for d in dirnames if d not in EXCLUDED_DIRS]
