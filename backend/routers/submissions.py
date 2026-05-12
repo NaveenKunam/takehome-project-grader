@@ -21,7 +21,7 @@ def parse_problem(file: UploadFile = File(...)):
     suffix = Path(file.filename or "problem.txt").suffix
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         shutil.copyfileobj(file.file, tmp)
-        file_path = tmp.name
+        file_path = tmp.name 
     try:
         extracted = extract_text_from_file(file_path)
         parsed = parse_problem_statement_with_gemini(extracted)
